@@ -5,26 +5,36 @@ A static flashcard web app generated from the Inkling PDF screenshots.
 ## Run
 
 ```powershell
-python -m http.server 5173
+npm run dev
 ```
 
-Then open `http://localhost:5173`.
+Then open `http://localhost:5174`.
 
 ## What is included
 
-- `data/materials.js`: 10,261 OCR-derived line cards from the two supplied PDFs.
+- `data/materials.js`: OCR-derived line cards from the supplied Inkling PDFs.
 - `assets/pages/`: cropped source-page previews shown beside each card.
 - `app.js`: local spaced review, flashcards, multiple choice, typed cloze, filters, and saved progress.
 - `tools/`: PDF rendering and OCR rebuild scripts.
 
-## Add another PDF later
+## Deploy to Vercel
+
+The app is a static site. Vercel can deploy it directly from this repository.
+
+```powershell
+npm run build
+```
+
+The build step validates `data/materials.js`; Vercel serves `index.html`, `app.js`, `styles.css`, `data/`, and `assets/`.
+
+## Rebuild the card data
 
 Install/use the bundled Python runtime, then rebuild with:
 
 ```powershell
-python tools/render_pages.py --pdf "book3=Book 3=C:\path\to\book.pdf"
+python tools/render_pages.py
 powershell -ExecutionPolicy Bypass -File tools/ocr_pages.ps1
 python tools/build_materials.py
 ```
 
-The default scripts are already configured for the two Inkling PDFs from this session.
+The default scripts are configured for the five Inkling PDFs from this session. To add another book, pass one or more `--pdf "id=Title=C:\path\to\book.pdf"` arguments to `tools/render_pages.py`.

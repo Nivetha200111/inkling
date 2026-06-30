@@ -1,0 +1,10 @@
+{
+  "name": "quizling-inkling",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static Quizling-style flashcards generated from Inkling PDFs.",
+  "scripts": {
+    "dev": "python -m http.server 5174",
+    "build": "node tools/verify-data.js"
+  }
+}

@@ -11,6 +11,9 @@ import pypdfium2 as pdfium
 DEFAULT_PDFS = [
     ("inkling1", "Inkling Part 1", Path(r"C:\Users\NivethaSivakumar\Downloads\inkling1.pdf")),
     ("inklingpart2", "Inkling Part 2", Path(r"C:\Users\NivethaSivakumar\Downloads\inklingpart2.pdf")),
+    ("adfinkling1", "ADF Inkling Part 1", Path(r"C:\Users\NivethaSivakumar\Downloads\adfinkling1.pdf")),
+    ("adfinkling2", "ADF Inkling Part 2", Path(r"C:\Users\NivethaSivakumar\Downloads\adfinkling2.pdf")),
+    ("adfinkling3", "ADF Inkling Part 3", Path(r"C:\Users\NivethaSivakumar\Downloads\adfinkling3.pdf")),
 ]
 
 CROP = (0.27, 0.02, 0.91, 0.99)
