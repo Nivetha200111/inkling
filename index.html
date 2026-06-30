@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quizling</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail">
+        <div class="brand">
+          <div class="mark">Q</div>
+          <div>
+            <h1>Quizling</h1>
+            <p id="datasetSummary">Loading cards</p>
+          </div>
+        </div>
+
+        <section class="control-group">
+          <label for="searchInput">Search</label>
+          <input id="searchInput" type="search" placeholder="terms, code, page" autocomplete="off" />
+        </section>
+
+        <section class="control-group">
+          <label>Mode</label>
+          <div class="segmented" role="tablist" aria-label="Study mode">
+            <button class="segment is-active" type="button" data-mode="flash">Flash</button>
+            <button class="segment" type="button" data-mode="quiz">Quiz</button>
+            <button class="segment" type="button" data-mode="write">Write</button>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <label>Source</label>
+          <div id="sourceFilters" class="filter-stack"></div>
+        </section>
+
+        <section class="control-group">
+          <label>Line Type</label>
+          <div class="filter-stack">
+            <button class="filter is-active" type="button" data-kind="all">All</button>
+            <button class="filter" type="button" data-kind="line">Lines</button>
+            <button class="filter" type="button" data-kind="heading">Headings</button>
+            <button class="filter" type="button" data-kind="code">Code</button>
+          </div>
+        </section>
+
+        <section class="stats-panel">
+          <div>
+            <span id="dueCount">0</span>
+            <small>due</small>
+          </div>
+          <div>
+            <span id="seenCount">0</span>
+            <small>seen</small>
+          </div>
+          <div>
+            <span id="masteredCount">0</span>
+            <small>mastered</small>
+          </div>
+        </section>
+
+        <button id="resetButton" class="ghost-button" type="button">Reset Progress</button>
+      </aside>
+
+      <main class="study-area">
+        <section class="topline">
+          <div>
+            <p class="eyebrow">Two-day sprint</p>
+            <h2 id="todayTarget">0 cards today</h2>
+          </div>
+          <div class="meter-wrap" aria-label="Daily target progress">
+            <div class="meter">
+              <span id="dailyMeter"></span>
+            </div>
+            <strong id="dailyProgress">0 / 0</strong>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <article class="study-panel">
+            <div class="card-meta">
+              <span id="cardSource">Source</span>
+              <span id="cardLocator">Page 0, line 0</span>
+              <span id="cardKind">line</span>
+            </div>
+
+            <div id="promptText" class="prompt"></div>
+
+            <div id="answerBox" class="answer-box is-hidden">
+              <span>Answer</span>
+              <p id="answerText"></p>
+            </div>
+
+            <div id="quizChoices" class="choices" hidden></div>
+
+            <form id="writeForm" class="write-form" hidden>
+              <input id="writeInput" type="text" autocomplete="off" />
+              <button class="primary-button" type="submit">Check</button>
+            </form>
+
+            <div id="feedback" class="feedback" aria-live="polite"></div>
+
+            <div class="actions">
+              <button id="revealButton" class="primary-button" type="button">Reveal</button>
+              <button class="grade is-again" type="button" data-grade="again">Again</button>
+              <button class="grade is-hard" type="button" data-grade="hard">Hard</button>
+              <button class="grade is-good" type="button" data-grade="good">Good</button>
+              <button class="grade is-easy" type="button" data-grade="easy">Easy</button>
+            </div>
+          </article>
+
+          <aside class="context-panel">
+            <div class="context-header">
+              <div>
+                <p class="eyebrow">Source page</p>
+                <h3 id="contextTitle">Preview</h3>
+              </div>
+              <button id="openImageButton" class="ghost-button" type="button">Open</button>
+            </div>
+            <div class="page-frame">
+              <img id="pageImage" alt="Current source page" />
+            </div>
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <script src="data/materials.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
