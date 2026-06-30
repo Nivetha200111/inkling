@@ -356,17 +356,55 @@ function getCloze(card) {
   if (clozeCache.has(card.id)) return clozeCache.get(card.id);
 
   const text = card.text;
-  const matches = text.match(/[A-Za-z][A-Za-z0-9_.$-]{3,}/g) || [];
+  
+  // To avoid picking strings as blanks in code snippets
+  const textForCandidates = card.kind === "code" 
+      ? text.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '""') 
+      : text;
+
+  const matches = textForCandidates.match(/[A-Za-z][A-Za-z0-9_.$-]{3,}/g) || [];
+  
   const candidates = matches.filter((word) => {
     const normalized = word.toLowerCase().replace(/[^a-z0-9_.$-]/g, "");
     return normalized.length >= 4 && !STOPWORDS.has(normalized);
   });
-  const fallback = matches.find((word) => word.length >= 3) || text.split(/\s+/)[0] || text;
-  const answer = candidates.length ? candidates[hashToIndex(card.id, candidates.length)] : fallback;
+
+  const HIGH_PRIORITY = new Set([
+    "gliderecord", "glidesystem", "glideajax", "glidequery", "glideform", "glideuser", "glideelement",
+    "g_form", "g_user", "g_list", "g_scratchpad", "current", "previous",
+    "addquery", "addencodedquery", "query", "next", "get", "getvalue", "setvalue", "update", "insert",
+    "function", "return", "typeof", "instanceof", "prototype", "sys_id", "sys_created_on",
+    "client", "server", "script", "include"
+  ]);
+
+  const scored = candidates.map(word => {
+    const norm = word.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    let score = 1;
+    // Boost known keywords heavily
+    if (HIGH_PRIORITY.has(norm)) score += 100;
+    // Boost TitleCase words (likely class names)
+    if (/^[A-Z][a-z0-9]+/.test(word)) score += 50; 
+    // Boost camelCase words (likely methods or variables)
+    if (/^[a-z]+[A-Z][a-zA-Z]*$/.test(word)) score += 30; 
+    return { word, score };
+  });
+
+  // Sort by score descending, then tie-break deterministically via hash
+  scored.sort((a, b) => b.score - a.score || hashToIndex(card.id + a.word, 100) - hashToIndex(card.id + b.word, 100));
+
+  let answer;
+  if (scored.length > 0) {
+    answer = scored[0].word;
+  } else {
+    const fallbackMatches = text.match(/[A-Za-z0-9_]{3,}/g) || [];
+    answer = fallbackMatches.length ? fallbackMatches[hashToIndex(card.id, fallbackMatches.length)] : text.split(/\s+/)[0] || text;
+  }
+
   const promptHtml = escapeHtml(text).replace(
     new RegExp(escapeRegExp(escapeHtml(answer)), "i"),
     '<span class="blank"></span>'
   );
+  
   const cloze = { answer, promptHtml, full: text };
   clozeCache.set(card.id, cloze);
   return cloze;
