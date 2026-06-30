@@ -3,32 +3,48 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Quizling</title>
+    <title>Inkling</title>
+    <meta name="description" content="Inkling — A stunning spaced-repetition flashcard study app for mastering your materials." />
     <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div class="app-shell">
+      <!-- Sidebar overlay for mobile -->
+      <div class="sidebar-overlay"></div>
+
       <aside class="rail">
         <div class="brand">
-          <div class="mark">Q</div>
+          <div class="mark">I</div>
           <div>
-            <h1>Quizling</h1>
+            <h1>Inkling</h1>
             <p id="datasetSummary">Loading cards</p>
           </div>
         </div>
 
         <section class="control-group">
           <label for="searchInput">Search</label>
-          <input id="searchInput" type="search" placeholder="terms, code, page" autocomplete="off" />
+          <input id="searchInput" type="search" placeholder="terms, code, page…" autocomplete="off" />
         </section>
 
         <section class="control-group">
           <label>Mode</label>
           <div class="segmented" role="tablist" aria-label="Study mode">
-            <button class="segment is-active" type="button" data-mode="flash">Flash</button>
-            <button class="segment" type="button" data-mode="quiz">Quiz</button>
-            <button class="segment" type="button" data-mode="write">Write</button>
+            <button class="segment is-active" type="button" data-mode="flash">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Flash
+            </button>
+            <button class="segment" type="button" data-mode="quiz">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Quiz
+            </button>
+            <button class="segment" type="button" data-mode="write">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Write
+            </button>
           </div>
         </section>
 
@@ -62,63 +78,108 @@
           </div>
         </section>
 
-        <button id="resetButton" class="ghost-button" type="button">Reset Progress</button>
+        <button id="resetButton" class="ghost-button" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Reset Progress
+        </button>
       </aside>
 
       <main class="study-area">
-        <section class="topline">
-          <div>
+        <header class="topbar">
+          <button id="sidebarToggle" class="icon-button sidebar-toggle" type="button" aria-label="Toggle sidebar">
+            <span class="hamburger">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
+
+          <div class="topbar-info">
             <p class="eyebrow">Two-day sprint</p>
             <h2 id="todayTarget">0 cards today</h2>
           </div>
+
           <div class="meter-wrap" aria-label="Daily target progress">
             <div class="meter">
               <span id="dailyMeter"></span>
             </div>
             <strong id="dailyProgress">0 / 0</strong>
           </div>
-        </section>
+
+          <button id="contextToggle" class="icon-button context-toggle" type="button" aria-label="Toggle page preview">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
+        </header>
 
         <section class="workspace">
-          <article class="study-panel">
-            <div class="card-meta">
-              <span id="cardSource">Source</span>
-              <span id="cardLocator">Page 0, line 0</span>
-              <span id="cardKind">line</span>
-            </div>
+          <article class="card">
+            <div class="card-inner">
+              <!-- FRONT -->
+              <div class="card-front">
+                <div class="card-meta">
+                  <span id="cardSource">Source</span>
+                  <span id="cardLocator">Page 0, line 0</span>
+                  <span id="cardKind">line</span>
+                </div>
 
-            <div id="promptText" class="prompt"></div>
+                <div id="promptText" class="prompt"></div>
 
-            <div id="answerBox" class="answer-box is-hidden">
-              <span>Answer</span>
-              <p id="answerText"></p>
-            </div>
+                <div id="quizChoices" class="choices" hidden></div>
 
-            <div id="quizChoices" class="choices" hidden></div>
+                <form id="writeForm" class="write-form" hidden>
+                  <input id="writeInput" type="text" placeholder="Type the missing term…" autocomplete="off" />
+                  <button class="primary-button" type="submit">Check</button>
+                </form>
 
-            <form id="writeForm" class="write-form" hidden>
-              <input id="writeInput" type="text" autocomplete="off" />
-              <button class="primary-button" type="submit">Check</button>
-            </form>
+                <div id="feedback" class="feedback" aria-live="polite"></div>
 
-            <div id="feedback" class="feedback" aria-live="polite"></div>
+                <div class="actions">
+                  <button id="revealButton" class="primary-button reveal-btn" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Reveal
+                  </button>
+                  <div class="grade-row">
+                    <button class="grade is-again" type="button" data-grade="again">Again</button>
+                    <button class="grade is-hard" type="button" data-grade="hard">Hard</button>
+                    <button class="grade is-good" type="button" data-grade="good">Good</button>
+                    <button class="grade is-easy" type="button" data-grade="easy">Easy</button>
+                  </div>
+                </div>
+              </div>
 
-            <div class="actions">
-              <button id="revealButton" class="primary-button" type="button">Reveal</button>
-              <button class="grade is-again" type="button" data-grade="again">Again</button>
-              <button class="grade is-hard" type="button" data-grade="hard">Hard</button>
-              <button class="grade is-good" type="button" data-grade="good">Good</button>
-              <button class="grade is-easy" type="button" data-grade="easy">Easy</button>
+              <!-- BACK -->
+              <div class="card-back">
+                <div class="card-meta">
+                  <span class="card-back-label">Answer</span>
+                </div>
+
+                <div id="answerBox" class="answer-box">
+                  <span>Answer</span>
+                  <p id="answerText"></p>
+                </div>
+
+                <div class="back-actions">
+                  <div class="grade-row">
+                    <button class="grade is-again" type="button" data-grade="again">Again</button>
+                    <button class="grade is-hard" type="button" data-grade="hard">Hard</button>
+                    <button class="grade is-good" type="button" data-grade="good">Good</button>
+                    <button class="grade is-easy" type="button" data-grade="easy">Easy</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </article>
 
-          <aside class="context-panel">
+          <aside class="context-panel is-hidden">
             <div class="context-header">
               <div>
                 <p class="eyebrow">Source page</p>
                 <h3 id="contextTitle">Preview</h3>
               </div>
-              <button id="openImageButton" class="ghost-button" type="button">Open</button>
+              <button id="openImageButton" class="ghost-button" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Open
+              </button>
             </div>
             <div class="page-frame">
               <img id="pageImage" alt="Current source page" />

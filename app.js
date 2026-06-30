@@ -1,47 +1,20 @@
 const MATERIALS = window.INKLING_MATERIALS || { cards: [], sources: [], stats: {} };
 const CARDS = MATERIALS.cards || [];
-const STORAGE_KEY = "quizling.progress.v1";
+const STORAGE_KEY = "quizling.progress.v2"; // bump version for clean state
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_DAYS = 2;
 
-const STOPWORDS = new Set([
-  "about",
-  "after",
-  "again",
-  "also",
-  "because",
-  "before",
-  "being",
-  "between",
-  "cannot",
-  "could",
-  "during",
-  "every",
-  "from",
-  "have",
-  "into",
-  "more",
-  "most",
-  "only",
-  "other",
-  "should",
-  "that",
-  "their",
-  "there",
-  "these",
-  "this",
-  "through",
-  "when",
-  "where",
-  "which",
-  "with",
-  "without",
-  "will",
-  "would",
-  "your",
-]);
+const STOPWORDS = new Set(["about","after","again","also","because","before","being","between","cannot","could","during","every","from","have","into","more","most","only","other","should","that","their","there","these","this","through","when","where","which","with","without","will","would","your","what","how","does"]);
 
 const els = {
+  appShell: document.querySelector(".app-shell"),
+  sidebarOverlay: document.querySelector(".sidebar-overlay"),
+  sidebarToggle: document.querySelector("#sidebarToggle"),
+  contextToggle: document.querySelector("#contextToggle"),
+  workspace: document.querySelector(".workspace"),
+  contextPanel: document.querySelector(".context-panel"),
+  card: document.querySelector(".card"),
+  
   datasetSummary: document.querySelector("#datasetSummary"),
   searchInput: document.querySelector("#searchInput"),
   sourceFilters: document.querySelector("#sourceFilters"),
@@ -51,20 +24,24 @@ const els = {
   todayTarget: document.querySelector("#todayTarget"),
   dailyMeter: document.querySelector("#dailyMeter"),
   dailyProgress: document.querySelector("#dailyProgress"),
+  
   cardSource: document.querySelector("#cardSource"),
   cardLocator: document.querySelector("#cardLocator"),
   cardKind: document.querySelector("#cardKind"),
   promptText: document.querySelector("#promptText"),
+  
   answerBox: document.querySelector("#answerBox"),
   answerText: document.querySelector("#answerText"),
   quizChoices: document.querySelector("#quizChoices"),
   writeForm: document.querySelector("#writeForm"),
   writeInput: document.querySelector("#writeInput"),
+  
   feedback: document.querySelector("#feedback"),
   revealButton: document.querySelector("#revealButton"),
   grades: [...document.querySelectorAll(".grade")],
   segments: [...document.querySelectorAll(".segment")],
   kindFilters: [...document.querySelectorAll("[data-kind]")],
+  
   resetButton: document.querySelector("#resetButton"),
   pageImage: document.querySelector("#pageImage"),
   contextTitle: document.querySelector("#contextTitle"),
@@ -72,7 +49,6 @@ const els = {
 };
 
 const clozeCache = new Map();
-
 let state = loadState();
 let ui = {
   mode: "flash",
@@ -85,6 +61,7 @@ let ui = {
   revealed: false,
   answered: false,
   previousId: null,
+  showContext: false,
 };
 
 init();
@@ -93,12 +70,21 @@ function init() {
   ensureDailyState();
   renderSourceFilters();
   bindEvents();
-  els.datasetSummary.textContent = `${formatNumber(CARDS.length)} line cards`;
+  els.datasetSummary.textContent = `${formatNumber(CARDS.length)} cards`;
   selectNextCard();
   render();
 }
 
 function bindEvents() {
+  els.sidebarToggle.addEventListener("click", () => els.appShell.classList.toggle("is-collapsed"));
+  els.sidebarOverlay.addEventListener("click", () => els.appShell.classList.add("is-collapsed"));
+  
+  els.contextToggle.addEventListener("click", () => {
+    ui.showContext = !ui.showContext;
+    els.contextPanel.classList.toggle("is-hidden", !ui.showContext);
+    els.workspace.classList.toggle("has-context", ui.showContext);
+  });
+
   els.searchInput.addEventListener("input", () => {
     ui.search = els.searchInput.value.trim();
     selectNextCard();
@@ -122,11 +108,7 @@ function bindEvents() {
     });
   });
 
-  els.revealButton.addEventListener("click", () => {
-    ui.revealed = true;
-    ui.answered = true;
-    render();
-  });
+  els.revealButton.addEventListener("click", revealCard);
 
   els.grades.forEach((button) => {
     button.addEventListener("click", () => {
@@ -158,16 +140,23 @@ function bindEvents() {
     if (event.target instanceof HTMLInputElement) return;
     if (event.key === " " && !ui.revealed) {
       event.preventDefault();
-      ui.revealed = true;
-      ui.answered = true;
-      render();
+      revealCard();
+    } else if ((event.key === "Enter" || event.key === "ArrowRight") && ui.revealed && !els.grades.find(g=>g.dataset.grade==="good").disabled) {
+      event.preventDefault();
+      gradeCurrent("good");
     }
-    if (ui.mode === "quiz" && /^[1-4]$/.test(event.key)) {
+    if (ui.mode === "quiz" && !ui.revealed && /^[1-4]$/.test(event.key)) {
       const index = Number(event.key) - 1;
       const button = els.quizChoices.querySelectorAll(".choice")[index];
       if (button) button.click();
     }
   });
+}
+
+function revealCard() {
+  ui.revealed = true;
+  ui.answered = true;
+  render();
 }
 
 function renderSourceFilters() {
@@ -213,29 +202,40 @@ function render() {
   els.cardSource.textContent = card.sourceTitle;
   els.cardLocator.textContent = `Page ${card.page}, line ${card.line}`;
   els.cardKind.textContent = card.kind;
-  els.promptText.innerHTML = cloze.promptHtml;
+  
+  // Truncate prompt if it's too long
+  let promptHtml = cloze.promptHtml;
+  if (promptHtml.length > 200 && !promptHtml.includes('<span class="blank"></span>')) {
+     promptHtml = promptHtml.substring(0, 197) + "...";
+  }
+  els.promptText.innerHTML = promptHtml;
+  
   els.answerText.textContent = card.text;
-  els.answerBox.classList.toggle("is-hidden", !ui.revealed);
+  
+  els.card.classList.toggle("is-flipped", ui.revealed);
   els.feedback.textContent = "";
   els.feedback.className = "feedback";
 
   els.pageImage.src = card.pageImage;
-  els.contextTitle.textContent = `${card.sourceTitle} p.${card.page}`;
+  els.contextTitle.textContent = `p.${card.page}`;
 
   els.quizChoices.hidden = ui.mode !== "quiz";
   els.writeForm.hidden = ui.mode !== "write";
   els.revealButton.disabled = ui.revealed;
-  els.revealButton.textContent = ui.revealed ? "Revealed" : "Reveal";
+  
   els.grades.forEach((button) => {
     button.disabled = !ui.answered && !ui.revealed;
   });
 
-  if (ui.mode === "quiz") {
+  if (ui.mode === "quiz" && !ui.revealed) {
     renderChoices();
   }
 
   if (ui.mode === "write") {
-    els.writeInput.placeholder = "Missing term";
+    els.writeInput.placeholder = "Type the missing term...";
+    if(!ui.revealed) {
+      setTimeout(()=>els.writeInput.focus(), 100);
+    }
   }
 }
 
@@ -251,9 +251,7 @@ function renderMode() {
 function renderStats() {
   const filtered = getFilteredCards();
   const now = Date.now();
-  let due = 0;
-  let seen = 0;
-  let mastered = 0;
+  let due = 0, seen = 0, mastered = 0;
   for (const card of filtered) {
     const progress = state.cards[card.id];
     if (!progress || progress.due <= now) due += 1;
@@ -293,14 +291,12 @@ function renderEmptyState() {
   els.cardSource.textContent = "No cards";
   els.cardLocator.textContent = "Page 0, line 0";
   els.cardKind.textContent = "line";
-  els.promptText.textContent = "No matching cards";
-  els.answerBox.classList.add("is-hidden");
+  els.promptText.textContent = "No matching cards for current filters.";
   els.quizChoices.hidden = true;
   els.writeForm.hidden = true;
   els.revealButton.disabled = true;
-  els.grades.forEach((button) => {
-    button.disabled = true;
-  });
+  els.card.classList.remove("is-flipped");
+  els.grades.forEach((button) => button.disabled = true);
   els.contextTitle.textContent = "Preview";
   els.pageImage.removeAttribute("src");
 }
@@ -309,20 +305,16 @@ function selectNextCard() {
   const filtered = getFilteredCards();
   if (!filtered.length) {
     ui.current = null;
-    ui.currentCloze = null;
-    ui.currentChoices = [];
     return;
   }
 
   const now = Date.now();
   const available = filtered.filter((card) => card.id !== ui.previousId);
   const pool = available.length ? available : filtered;
-  const reviewedDue = pool
-    .filter((card) => {
-      const progress = state.cards[card.id];
-      return progress?.seen && progress.due <= now;
-    })
-    .sort((a, b) => progressRank(a, now) - progressRank(b, now));
+  const reviewedDue = pool.filter((card) => {
+    const progress = state.cards[card.id];
+    return progress?.seen && progress.due <= now;
+  }).sort((a, b) => progressRank(a, now) - progressRank(b, now));
 
   const unseen = pool.filter((card) => !state.cards[card.id]?.seen);
   const source = reviewedDue.length ? reviewedDue : unseen.length ? unseen : pool;
@@ -336,6 +328,11 @@ function selectNextCard() {
   ui.revealed = false;
   ui.answered = false;
   els.writeInput.value = "";
+  
+  // Entrance animation
+  els.card.classList.remove("card-enter");
+  void els.card.offsetWidth; // trigger reflow
+  els.card.classList.add("card-enter");
 }
 
 function progressRank(card, now) {
@@ -368,7 +365,7 @@ function getCloze(card) {
   const answer = candidates.length ? candidates[hashToIndex(card.id, candidates.length)] : fallback;
   const promptHtml = escapeHtml(text).replace(
     new RegExp(escapeRegExp(escapeHtml(answer)), "i"),
-    '<span class="blank"></span>',
+    '<span class="blank"></span>'
   );
   const cloze = { answer, promptHtml, full: text };
   clozeCache.set(card.id, cloze);
@@ -377,7 +374,7 @@ function getCloze(card) {
 
 function buildChoices(card, cloze) {
   const options = new Set([cloze.answer]);
-  const sameSource = CARDS.filter((candidate) => candidate.sourceId === card.sourceId && candidate.id !== card.id);
+  const sameSource = CARDS.filter((c) => c.sourceId === card.sourceId && c.id !== card.id);
   let index = hashToIndex(card.id + "-choices", Math.max(1, sameSource.length));
   while (options.size < 4 && sameSource.length) {
     const candidate = sameSource[index % sameSource.length];
@@ -388,12 +385,10 @@ function buildChoices(card, cloze) {
     index += 17;
     if (index > sameSource.length * 6) break;
   }
-
   while (options.size < 4) {
     const candidate = CARDS[hashToIndex(`${card.id}-${options.size}`, CARDS.length)];
     options.add(getCloze(candidate).answer);
   }
-
   return shuffle([...options], card.id);
 }
 
@@ -409,18 +404,11 @@ function chooseAnswer(button, choice) {
     item.classList.toggle("is-correct", isCorrect);
     item.disabled = true;
   });
-  if (!correct) {
-    button.classList.add("is-wrong");
-  }
+  if (!correct) button.classList.add("is-wrong");
 
-  els.answerBox.classList.remove("is-hidden");
   els.feedback.textContent = correct ? "Correct" : "Review this line";
   els.feedback.className = `feedback ${correct ? "is-good" : "is-bad"}`;
-  els.grades.forEach((grade) => {
-    grade.disabled = false;
-  });
-  els.revealButton.disabled = true;
-  els.revealButton.textContent = "Revealed";
+  render();
 }
 
 function checkWrittenAnswer() {
@@ -430,30 +418,17 @@ function checkWrittenAnswer() {
   const correct = submitted.length > 0 && (submitted === expected || expected.includes(submitted));
   ui.answered = true;
   ui.revealed = true;
-  els.answerBox.classList.remove("is-hidden");
   els.feedback.textContent = correct ? "Correct" : "Review this line";
   els.feedback.className = `feedback ${correct ? "is-good" : "is-bad"}`;
-  els.grades.forEach((grade) => {
-    grade.disabled = false;
-  });
-  els.revealButton.disabled = true;
-  els.revealButton.textContent = "Revealed";
+  render();
 }
 
 function gradeCurrent(grade) {
   const card = ui.current;
   if (!card) return;
-
   const now = Date.now();
-  const progress = state.cards[card.id] || {
-    attempts: 0,
-    correct: 0,
-    box: 0,
-    seen: false,
-    mastered: false,
-    due: 0,
-  };
-
+  const progress = state.cards[card.id] || { attempts: 0, correct: 0, box: 0, seen: false, mastered: false, due: 0 };
+  
   progress.attempts += 1;
   progress.seen = true;
   progress.last = now;
@@ -474,7 +449,6 @@ function gradeCurrent(grade) {
     progress.correct += 1;
     progress.due = now + 20 * 60 * 60 * 1000;
   }
-
   progress.mastered = progress.box >= 4;
   state.cards[card.id] = progress;
   state.dailyReviews += 1;
@@ -488,19 +462,12 @@ function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (parsed && parsed.cards) return parsed;
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-  }
+  } catch {}
   return createFreshState();
 }
 
 function createFreshState() {
-  return {
-    sprintStart: Date.now(),
-    dailyKey: getDayKey(),
-    dailyReviews: 0,
-    cards: {},
-  };
+  return { sprintStart: Date.now(), dailyKey: getDayKey(), dailyReviews: 0, cards: {} };
 }
 
 function ensureDailyState() {
@@ -512,54 +479,27 @@ function ensureDailyState() {
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function getDayKey() {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
 }
-
-function normalizeAnswer(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9_.$-]+/g, "")
-    .trim();
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
+function normalizeAnswer(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9_.$-]+/g, "").trim(); }
+function escapeHtml(value) { return String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+function escapeRegExp(value) { return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function hashToIndex(value, length) {
   let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
   return length ? hash % length : 0;
 }
-
 function shuffle(items, seed) {
   const copy = [...items];
   let cursor = hashToIndex(seed, copy.length || 1);
-  for (let index = copy.length - 1; index > 0; index -= 1) {
+  for (let i = copy.length - 1; i > 0; i--) {
     cursor = (cursor * 1103515245 + 12345) >>> 0;
-    const swapIndex = cursor % (index + 1);
-    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+    const swap = cursor % (i + 1);
+    [copy[i], copy[swap]] = [copy[swap], copy[i]];
   }
   return copy;
 }
-
-function formatNumber(value) {
-  return new Intl.NumberFormat().format(value || 0);
-}
+function formatNumber(value) { return new Intl.NumberFormat().format(value || 0); }
