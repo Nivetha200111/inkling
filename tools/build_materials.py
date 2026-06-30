@@ -108,20 +108,32 @@ def looks_like_continuation(text: str) -> bool:
 
 
 def merge_continuation_lines(lines: list[str]) -> list[str]:
-    """Merge lines that are obviously broken mid-sentence."""
+    """Merge lines that are obviously broken mid-sentence and group bullets."""
     if not lines:
         return lines
     merged = [lines[0]]
     for line in lines[1:]:
         prev = merged[-1]
-        # Merge if: previous line ends without sentence terminator AND current looks like continuation
-        if (prev and not prev[-1] in ".!?:;" and
-            (looks_like_continuation(line) or
-             (prev[-1] == "," or prev.endswith(" of") or prev.endswith(" the") or
-              prev.endswith(" a") or prev.endswith(" an") or prev.endswith(" to") or
-              prev.endswith(" and") or prev.endswith(" or") or prev.endswith(" in") or
-              prev.endswith(" is") or prev.endswith(" for") or prev.endswith(" with") or
-              prev.endswith(" not") or prev.endswith(" that")))):
+        
+        is_bullet = line.startswith("= ") or line.startswith("- ") or line.startswith("• ")
+        has_bullet = "= " in prev or "- " in prev or "• " in prev
+        
+        should_merge = False
+        if is_bullet and (prev.endswith(":") or has_bullet):
+            should_merge = True
+        elif prev and not prev[-1] in ".!?;":
+            if looks_like_continuation(line):
+                should_merge = True
+            elif prev[-1] == ":":
+                should_merge = True
+            elif prev[-1] == "," or prev.endswith(" of") or prev.endswith(" the") or \
+                 prev.endswith(" a") or prev.endswith(" an") or prev.endswith(" to") or \
+                 prev.endswith(" and") or prev.endswith(" or") or prev.endswith(" in") or \
+                 prev.endswith(" is") or prev.endswith(" for") or prev.endswith(" with") or \
+                 prev.endswith(" not") or prev.endswith(" that"):
+                should_merge = True
+                
+        if should_merge:
             merged[-1] = prev + " " + line
         else:
             merged.append(line)
