@@ -1,4 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node tools/verify-data.js",
+  "outputDirectory": ".",
   "cleanUrls": true,
   "headers": [
     {
