@@ -1,5 +1,16 @@
 const MATERIALS = window.INKLING_MATERIALS || { cards: [], sources: [], stats: {} };
 const CARDS = MATERIALS.cards || [];
+
+// Real CAD-style multiple-choice exam questions authored from the Inkling pages.
+const QUESTION_BANK = window.INKLING_QUESTIONS || { questions: [] };
+const QUESTIONS = (QUESTION_BANK.questions || []).map((q) => ({
+  ...q,
+  kind: "mcq",
+  // normalize so the shared card machinery (state, stats, filters) works unchanged
+  sourceId: q.source,
+  sourceTitle: q.sourceTitle || q.source,
+  pageImage: q.image,
+}));
 const STORAGE_KEY = "quizling.progress.v2"; // bump version for clean state
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_DAYS = 2;
@@ -37,6 +48,7 @@ const els = {
   writeInput: document.querySelector("#writeInput"),
   
   feedback: document.querySelector("#feedback"),
+  explanation: document.querySelector("#explanation"),
   revealButton: document.querySelector("#revealButton"),
   grades: [...document.querySelectorAll(".grade")],
   segments: [...document.querySelectorAll(".segment")],
@@ -58,6 +70,8 @@ let ui = {
   current: null,
   currentCloze: null,
   currentChoices: [],
+  currentAnswerIndex: -1,
+  chosenIndex: -1,
   revealed: false,
   answered: false,
   previousId: null,
@@ -96,6 +110,7 @@ function bindEvents() {
       ui.mode = button.dataset.mode;
       ui.revealed = false;
       ui.answered = false;
+      selectNextCard(); // pool differs between flash/write (CARDS) and exam (QUESTIONS)
       render();
     });
   });
@@ -174,6 +189,7 @@ function makeFilterButton(sourceId, label, count) {
   button.type = "button";
   button.className = `filter${sourceId === ui.sourceId ? " is-active" : ""}`;
   button.dataset.sourceId = sourceId;
+  button.dataset.label = label;
   button.textContent = `${label} (${formatNumber(count)})`;
   button.addEventListener("click", () => {
     ui.sourceId = sourceId;
@@ -186,9 +202,23 @@ function makeFilterButton(sourceId, label, count) {
   return button;
 }
 
+// Keep the dataset summary and per-source counts in sync with the active pool
+// (flashcards in Flash/Write modes, exam questions in Exam mode).
+function refreshPoolCounts() {
+  const pool = getActivePool();
+  const noun = ui.mode === "quiz" ? "questions" : "cards";
+  els.datasetSummary.textContent = `${formatNumber(pool.length)} ${noun}`;
+  els.sourceFilters.querySelectorAll(".filter").forEach((button) => {
+    const id = button.dataset.sourceId;
+    const count = id === "all" ? pool.length : pool.filter((c) => c.sourceId === id).length;
+    button.textContent = `${button.dataset.label} (${formatNumber(count)})`;
+  });
+}
+
 function render() {
   ensureDailyState();
   renderMode();
+  refreshPoolCounts();
   renderStats();
 
   if (!ui.current) {
@@ -197,21 +227,28 @@ function render() {
   }
 
   const card = ui.current;
+
+  if (card.kind === "mcq") {
+    renderMcq(card);
+    return;
+  }
+
   const cloze = ui.currentCloze;
 
   els.cardSource.textContent = card.sourceTitle;
   els.cardLocator.textContent = `Page ${card.page}, line ${card.line}`;
   els.cardKind.textContent = card.kind;
-  
+  els.explanation.hidden = true;
+
   // Truncate prompt if it's too long
   let promptHtml = cloze.promptHtml;
   if (promptHtml.length > 200 && !promptHtml.includes('<span class="blank"></span>')) {
      promptHtml = promptHtml.substring(0, 197) + "...";
   }
   els.promptText.innerHTML = promptHtml;
-  
+
   els.answerText.textContent = card.text;
-  
+
   els.card.classList.toggle("is-flipped", ui.revealed);
   els.feedback.textContent = "";
   els.feedback.className = "feedback";
@@ -221,8 +258,9 @@ function render() {
 
   els.quizChoices.hidden = ui.mode !== "quiz";
   els.writeForm.hidden = ui.mode !== "write";
+  els.revealButton.hidden = false;
   els.revealButton.disabled = ui.revealed;
-  
+
   els.grades.forEach((button) => {
     button.disabled = !ui.answered && !ui.revealed;
   });
@@ -275,16 +313,64 @@ function renderStats() {
   els.dailyMeter.style.width = `${percent}%`;
 }
 
+// Renders an authored multiple-choice exam question on the front of the card.
+function renderMcq(q) {
+  els.cardSource.textContent = q.sourceTitle;
+  els.cardLocator.textContent = `Page ${q.page} · ${q.domain}`;
+  els.cardKind.textContent = "exam";
+
+  els.promptText.innerHTML = escapeHtml(q.stem);
+  els.answerText.textContent = q.options[q.answer];
+
+  els.card.classList.remove("is-flipped"); // exam answers reveal inline, no flip
+  els.pageImage.src = q.pageImage;
+  els.contextTitle.textContent = `p.${q.page}`;
+
+  els.writeForm.hidden = true;
+  els.quizChoices.hidden = false;
+  els.revealButton.hidden = true; // you answer by choosing, not revealing
+
+  if (ui.answered) {
+    els.explanation.hidden = false;
+    els.explanation.innerHTML = `<strong>Why:</strong> ${escapeHtml(q.explanation || "")}`;
+  } else {
+    els.explanation.hidden = true;
+    els.feedback.textContent = "";
+    els.feedback.className = "feedback";
+  }
+
+  renderChoices();
+  els.grades.forEach((button) => { button.disabled = !ui.answered; });
+}
+
 function renderChoices() {
   els.quizChoices.innerHTML = "";
+  const isMcq = ui.current?.kind === "mcq";
   ui.currentChoices.forEach((choice, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "choice";
     button.textContent = `${index + 1}. ${choice}`;
-    button.addEventListener("click", () => chooseAnswer(button, choice));
+    if (isMcq && ui.answered) {
+      button.disabled = true;
+      if (index === ui.currentAnswerIndex) button.classList.add("is-correct");
+      else if (index === ui.chosenIndex) button.classList.add("is-wrong");
+    } else {
+      button.addEventListener("click", () => isMcq ? chooseMcq(index) : chooseAnswer(button, choice));
+    }
     els.quizChoices.appendChild(button);
   });
+}
+
+function chooseMcq(index) {
+  if (ui.answered) return;
+  ui.chosenIndex = index;
+  ui.answered = true;
+  ui.revealed = true;
+  const correct = index === ui.currentAnswerIndex;
+  els.feedback.textContent = correct ? "Correct" : "Incorrect";
+  els.feedback.className = `feedback ${correct ? "is-good" : "is-bad"}`;
+  render();
 }
 
 function renderEmptyState() {
@@ -323,8 +409,15 @@ function selectNextCard() {
   const next = windowed[Math.floor(Math.random() * windowed.length)];
 
   ui.current = next;
-  ui.currentCloze = getCloze(next);
-  ui.currentChoices = buildChoices(next, ui.currentCloze);
+  if (next.kind === "mcq") {
+    ui.currentCloze = null;
+    ui.currentChoices = next.options;
+    ui.currentAnswerIndex = next.answer;
+  } else {
+    ui.currentCloze = getCloze(next);
+    ui.currentChoices = buildChoices(next, ui.currentCloze);
+    ui.currentAnswerIndex = -1;
+  }
   ui.revealed = false;
   ui.answered = false;
   els.writeInput.value = "";
@@ -341,13 +434,20 @@ function progressRank(card, now) {
   return (progress.due || 0) - now + (progress.attempts || 0) * 1000;
 }
 
+function getActivePool() {
+  return ui.mode === "quiz" ? QUESTIONS : CARDS;
+}
+
 function getFilteredCards() {
   const terms = ui.search.toLowerCase().split(/\s+/).filter(Boolean);
-  return CARDS.filter((card) => {
+  return getActivePool().filter((card) => {
     if (ui.sourceId !== "all" && card.sourceId !== ui.sourceId) return false;
-    if (ui.kind !== "all" && card.kind !== ui.kind) return false;
+    // Line-type filter only applies to flashcards, not exam questions.
+    if (card.kind !== "mcq" && ui.kind !== "all" && card.kind !== ui.kind) return false;
     if (!terms.length) return true;
-    const haystack = `${card.text} ${card.sourceTitle} page ${card.page} line ${card.line}`.toLowerCase();
+    const haystack = card.kind === "mcq"
+      ? `${card.stem} ${card.options.join(" ")} ${card.explanation} ${card.sourceTitle} ${card.domain} page ${card.page}`.toLowerCase()
+      : `${card.text} ${card.sourceTitle} page ${card.page} line ${card.line}`.toLowerCase();
     return terms.every((term) => haystack.includes(term));
   });
 }

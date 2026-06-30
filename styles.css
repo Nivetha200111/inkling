@@ -351,6 +351,13 @@ input:focus {
 .feedback.is-good { color: var(--green); }
 .feedback.is-bad { color: var(--coral); }
 
+.explanation {
+  font-size: 0.95rem; line-height: 1.55; color: rgba(255,255,255,0.82);
+  background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px 14px;
+}
+.explanation strong { color: var(--accent); }
+
 .actions, .back-actions { display: flex; flex-direction: column; gap: 12px; margin-top: auto; }
 .reveal-btn { background: linear-gradient(135deg, var(--accent), #5a4bcf); color: #fff; border: none; font-weight: 600; }
 .reveal-btn:hover { box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); transform: translateY(-1px); }

@@ -2,3 +2,7 @@ tmp/
 node_modules/
 .DS_Store
 Thumbs.db
+
+# Source PDFs (huge, not needed by the deployed app)
+*.pdf
+.claude/
